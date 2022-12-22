@@ -36,12 +36,35 @@ public interface ConnectionAcceptor extends AsyncCloseable {
     /**
      * Evaluate the passed {@link ConnectionContext} to accept or reject. If the returned {@link Completable} terminates
      * successfully then the passed {@link ConnectionContext} will be accepted, otherwise rejected.
+     * <p>
+     * This method is called AFTER the TLS handshake is complete (if TLS is enabled), so additional context for the
+     * secure connection is provided. Since establishing the TLS connection can be computationally expensive, if the
+     * TLS information is not relevant, consider using {@link #accept(ReducedConnectionInfo)} instead which is
+     * called before the TLS handshake begins.
      *
      * @param context the {@link ConnectionContext} to evaluate.
      * @return {@link Completable}, which when terminated successfully, the passed {@link ConnectionContext}
      * is accepted, otherwise rejected.
+     * @see #accept(ReducedConnectionInfo)
      */
     Completable accept(ConnectionContext context);
+
+    /**
+     * Evaluate the passed {@link ReducedConnectionInfo} to accept or reject. If the returned {@link Completable}
+     * terminates successfully the connection will be accepted, otherwise rejected.
+     * <p>
+     * This method is called BEFORE the TLS handshake is complete, so it allows to terminate connections with less
+     * computational overhead than {@link #accept(ConnectionContext)} which only gets called after the TLS handshake
+     * completed (but provides more context including information gathered through the TLS connection phase).
+     *
+     * @param info additional information about the connection that can be accepted or rejected.
+     * @return {@link Completable}, which when terminated successfully, the passed {@link ConnectionContext}
+     * is accepted, otherwise rejected.
+     * @see #accept(ConnectionContext)
+     */
+    default Completable accept(ReducedConnectionInfo info) {
+        return completed();
+    }
 
     /**
      * Returns a composed {@link ConnectionAcceptor} that first applies {@code this} {@link ConnectionAcceptor}, and if

@@ -15,7 +15,6 @@
  */
 package io.servicetalk.transport.api;
 
-import java.net.SocketAddress;
 import java.net.SocketOption;
 import java.net.StandardSocketOptions;
 import javax.annotation.Nullable;
@@ -24,20 +23,7 @@ import javax.net.ssl.SSLSession;
 /**
  * Provides information about a connection.
  */
-public interface ConnectionInfo {
-    /**
-     * The {@link SocketAddress} to which the associated connection is bound.
-     *
-     * @return The {@link SocketAddress} to which the associated connection is bound.
-     */
-    SocketAddress localAddress();
-
-    /**
-     * The {@link SocketAddress} to which the associated connection is connected.
-     *
-     * @return The {@link SocketAddress} to which the associated connection is connected.
-     */
-    SocketAddress remoteAddress();
+public interface ConnectionInfo extends ReducedConnectionInfo {
 
     /**
      * Get the {@link SslConfig} for this connection.

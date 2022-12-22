@@ -15,6 +15,7 @@
  */
 package io.servicetalk.http.netty;
 
+import io.servicetalk.concurrent.api.Completable;
 import io.servicetalk.concurrent.api.Single;
 import io.servicetalk.http.api.BlockingHttpClient;
 import io.servicetalk.http.api.HttpRequest;
@@ -22,9 +23,11 @@ import io.servicetalk.http.api.HttpResponse;
 import io.servicetalk.http.api.HttpResponseFactory;
 import io.servicetalk.http.api.HttpResponseStatus;
 import io.servicetalk.http.api.HttpServiceContext;
-import io.servicetalk.transport.api.ConnectExecutionStrategy;
+import io.servicetalk.transport.api.ConnectionAcceptor;
 import io.servicetalk.transport.api.ConnectionAcceptorFactory;
+import io.servicetalk.transport.api.ConnectionContext;
 import io.servicetalk.transport.api.IoThreadFactory;
+import io.servicetalk.transport.api.ReducedConnectionInfo;
 import io.servicetalk.transport.api.ServerContext;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.servicetalk.concurrent.api.Single.succeeded;
 import static io.servicetalk.http.api.HttpSerializers.textSerializerUtf8;
+import static io.servicetalk.transport.api.ConnectExecutionStrategy.offloadAll;
+import static io.servicetalk.transport.api.ConnectExecutionStrategy.offloadNone;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -43,14 +48,25 @@ class ConnectionAcceptorOffloadingTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void testAcceptorOffloading(boolean offload) throws Exception {
-        AtomicReference<Boolean> offloaded = new AtomicReference<>();
+        AtomicReference<Boolean> offloadedFull = new AtomicReference<>();
+        AtomicReference<Boolean> offloadedEarly = new AtomicReference<>();
+
         ConnectionAcceptorFactory factory = ConnectionAcceptorFactory.withStrategy(original ->
-                        context -> {
-                            boolean isIoThread = IoThreadFactory.IoThread.currentThreadIsIoThread();
-                            offloaded.set(!isIoThread);
-                            return original.accept(context);
-                        },
-                offload ? ConnectExecutionStrategy.offloadAll() : ConnectExecutionStrategy.offloadNone());
+                new ConnectionAcceptor() {
+                    @Override
+                    public Completable accept(final ConnectionContext context) {
+                        boolean isIoThread = IoThreadFactory.IoThread.currentThreadIsIoThread();
+                        offloadedFull.set(!isIoThread);
+                        return original.accept(context);
+                    }
+
+                    @Override
+                    public Completable accept(final ReducedConnectionInfo info) {
+                        boolean isIoThread = IoThreadFactory.IoThread.currentThreadIsIoThread();
+                        offloadedEarly.set(!isIoThread);
+                        return original.accept(info);
+                    }
+                }, offload ? offloadAll() : offloadNone());
 
         try (ServerContext server = HttpServers.forPort(0)
                 .appendConnectionAcceptorFilter(factory)
@@ -62,8 +78,10 @@ class ConnectionAcceptorOffloadingTest {
                 assertThat("unexpected status", response.status(), is(HttpResponseStatus.OK));
             }
         }
-        assertThat("factory was not invoked", offloaded.get(), is(notNullValue()));
-        assertThat("incorrect offloading", offloaded.get(), is(offload));
+        assertThat("factory was not invoked", offloadedFull.get(), is(notNullValue()));
+        assertThat("incorrect full offloading", offloadedFull.get(), is(offload));
+        assertThat("factory was not invoked", offloadedEarly.get(), is(notNullValue()));
+        assertThat("incorrect early offloading", offloadedEarly.get(), is(offload));
     }
 
     private Single<HttpResponse> helloWorld(HttpServiceContext ctx,

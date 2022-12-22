@@ -15,7 +15,13 @@
  */
 package io.servicetalk.examples.http.helloworld.async;
 
+import io.servicetalk.client.api.ConnectionRejectedException;
+import io.servicetalk.concurrent.api.Completable;
 import io.servicetalk.http.netty.HttpServers;
+import io.servicetalk.transport.api.ConnectionAcceptor;
+import io.servicetalk.transport.api.ConnectionAcceptorFactory;
+import io.servicetalk.transport.api.ConnectionContext;
+import io.servicetalk.transport.api.ReducedConnectionInfo;
 
 import static io.servicetalk.concurrent.api.Single.succeeded;
 import static io.servicetalk.http.api.HttpSerializers.textSerializerUtf8;
@@ -23,6 +29,22 @@ import static io.servicetalk.http.api.HttpSerializers.textSerializerUtf8;
 public final class HelloWorldServer {
     public static void main(String[] args) throws Exception {
         HttpServers.forPort(8080)
+                .appendConnectionAcceptorFilter(original -> new ConnectionAcceptor() {
+                    @Override
+                    public Completable accept(final ConnectionContext context) {
+                        System.err.println("FULL: " + Thread.currentThread().getName());
+                        return Completable.completed();
+                    }
+
+                    @Override
+                    public Completable accept(final ReducedConnectionInfo connectionInfo) {
+                        System.err.println("RCI: " + Thread.currentThread().getName());
+                        return Completable.completed();
+
+                        //return Completable.failed(new RuntimeException("I FAILED YOU"));
+                    }
+
+                })
                 .listenAndAwait((ctx, request, responseFactory) ->
                         succeeded(responseFactory.ok()
                                 .payloadBody("Hello World!", textSerializerUtf8())))

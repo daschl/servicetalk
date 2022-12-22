@@ -34,6 +34,11 @@ final class ConnectionAcceptorAppender implements ConnectionAcceptor {
     }
 
     @Override
+    public Completable accept(final ReducedConnectionInfo connectionInfo) {
+        return first.accept(connectionInfo).concat(defer(() -> second.accept(connectionInfo)));
+    }
+
+    @Override
     public Completable accept(final ConnectionContext context) {
         return first.accept(context).concat(defer(() -> second.accept(context)));
     }

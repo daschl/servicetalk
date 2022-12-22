@@ -41,6 +41,11 @@ public class DelegatingConnectionAcceptor implements ConnectionAcceptor {
     }
 
     @Override
+    public Completable accept(final ReducedConnectionInfo connectionInfo) {
+        return delegate.accept(connectionInfo);
+    }
+
+    @Override
     public Completable closeAsync() {
         return delegate.closeAsync();
     }
