@@ -112,7 +112,6 @@ public final class DefaultNettyConnection<Read, Write> extends NettyChannelListe
     private final NettyChannelPublisher<Read> nettyChannelPublisher;
     private final Publisher<Read> readPublisher;
     private final ExecutionContext<?> executionContext;
-    private final SingleSource.Processor<Throwable, Throwable> transportError = newSingleProcessor();
     private final FlushStrategyHolder flushStrategyHolder;
     private final long idleTimeoutMs;
     private final Protocol protocol;
@@ -188,7 +187,6 @@ public final class DefaultNettyConnection<Read, Write> extends NettyChannelListe
                 if (closeReason == null) {
                     closeReason = evt;
                     notifyOnClosing();
-                    transportError.onSuccess(evt.wrapError(null, channel));
                     LOGGER.debug("{} Emitted CloseEvent: {}", channel, evt);
                 }
             });
@@ -556,7 +554,6 @@ public final class DefaultNettyConnection<Read, Write> extends NettyChannelListe
                 throwable = enrichProtocolError.apply(t);
             }
         }
-        transportError.onSuccess(throwable);
         return throwable;
     }
 
@@ -745,11 +742,6 @@ public final class DefaultNettyConnection<Read, Write> extends NettyChannelListe
     @Override
     public FlushStrategy defaultFlushStrategy() {
         return flushStrategyHolder.currentStrategy();
-    }
-
-    @Override
-    public Single<Throwable> transportError() {
-        return fromSource(transportError);
     }
 
     private static final class NoopChannelOutboundListener implements ChannelOutboundListener {

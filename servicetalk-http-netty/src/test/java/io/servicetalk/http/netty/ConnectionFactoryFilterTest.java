@@ -218,10 +218,5 @@ class ConnectionFactoryFilterTest {
         public FlushStrategy defaultFlushStrategy() {
             return delegate.defaultFlushStrategy();
         }
-
-        @Override
-        public Single<Throwable> transportError() {
-            return delegate.transportError();
-        }
     }
 }

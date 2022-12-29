@@ -518,11 +518,6 @@ final class H2ClientParentConnectionContext extends H2ParentConnectionContext {
         public FlushStrategy defaultFlushStrategy() {
             return parentContext.defaultFlushStrategy();
         }
-
-        @Override
-        public Single<Throwable> transportError() {
-            return parentContext.transportError();
-        }
     }
 
     private static final class MaxConcurrencyConsumableEvent implements ConsumableEvent<Integer> {

@@ -16,8 +16,6 @@
 package io.servicetalk.http.netty;
 
 import io.servicetalk.concurrent.Cancellable;
-import io.servicetalk.concurrent.SingleSource;
-import io.servicetalk.concurrent.api.Single;
 import io.servicetalk.concurrent.internal.DelayedCancellable;
 import io.servicetalk.http.api.DefaultHttpExecutionContext;
 import io.servicetalk.http.api.HttpConnectionContext;
@@ -64,7 +62,6 @@ class H2ParentConnectionContext extends NettyChannelListenableAsyncCloseable imp
                                                                                         HttpConnectionContext {
     final FlushStrategyHolder flushStrategyHolder;
     private final HttpExecutionContext executionContext;
-    private final SingleSource.Processor<Throwable, Throwable> transportError = newSingleProcessor();
     private final KeepAliveManager keepAliveManager;
     @Nullable
     private final SslConfig sslConfig;
@@ -94,11 +91,6 @@ class H2ParentConnectionContext extends NettyChannelListenableAsyncCloseable imp
     @Override
     public FlushStrategy defaultFlushStrategy() {
         return flushStrategyHolder.currentStrategy();
-    }
-
-    @Override
-    public final Single<Throwable> transportError() {
-        return fromSource(transportError);
     }
 
     @Override
@@ -246,7 +238,6 @@ class H2ParentConnectionContext extends NettyChannelListenableAsyncCloseable imp
             if (observer != NoopConnectionObserver.INSTANCE) {
                 assignConnectionError(ctx.channel(), cause);
             }
-            parentContext.transportError.onSuccess(cause);
         }
 
         @Override

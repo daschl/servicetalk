@@ -104,7 +104,6 @@ final class AbstractHttpConnectionTest {
         NettyConnection conn = mock(NettyConnection.class);
         when(conn.onClose()).thenReturn(never());
         when(conn.onClosing()).thenReturn(never());
-        when(conn.transportError()).thenReturn(Single.never());
         when(conn.protocol()).thenReturn(HTTP_1_1);
         http = TestStreamingHttpConnection.from(new MockStreamingHttpConnection(conn, 101));
     }

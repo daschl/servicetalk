@@ -211,11 +211,6 @@ public class NettyPipelinedConnectionBenchmark {
             }
 
             @Override
-            public Single<Throwable> transportError() {
-                return Single.never();
-            }
-
-            @Override
             public Completable onClosing() {
                 return Completable.never();
             }

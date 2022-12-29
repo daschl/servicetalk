@@ -26,6 +26,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http2.Http2GoAwayFrame;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static io.servicetalk.http.api.HttpProtocolVersion.HTTP_1_1;
 import static io.servicetalk.http.api.HttpProtocolVersion.HTTP_2_0;
@@ -49,13 +50,23 @@ final class CloseUtils {
         // be processed, which isn't the same as cc.onClosing().
         NettyConnectionContext nettyCtx = (NettyConnectionContext) cc;
         if (cc.protocol() == HTTP_1_1) {
-            nettyCtx.transportError().subscribe(t -> {
+            // TODO: this is wrong.
+            try {
+                nettyCtx.onClosing().toFuture().get();
+                closingStarted.countDown();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+
+            /*nettyCtx.transportError().subscribe(t -> {
                 if (t instanceof CloseEventObservedException &&
                         ((CloseEventObservedException) t).event() == GRACEFUL_USER_CLOSING) {
                     assert nettyCtx.nettyChannel().eventLoop().inEventLoop();
                     closingStarted.countDown();
                 }
-            });
+            });*/
         } else if (cc.protocol() == HTTP_2_0) {
             ChannelPipeline pipeline = nettyCtx.nettyChannel().pipeline();
             pipeline.addLast(new ChannelOutboundHandlerAdapter() {

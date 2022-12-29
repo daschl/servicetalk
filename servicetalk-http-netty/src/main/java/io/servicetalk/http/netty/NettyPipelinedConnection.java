@@ -20,7 +20,6 @@ import io.servicetalk.concurrent.PublisherSource;
 import io.servicetalk.concurrent.PublisherSource.Subscriber;
 import io.servicetalk.concurrent.api.Completable;
 import io.servicetalk.concurrent.api.Publisher;
-import io.servicetalk.concurrent.api.Single;
 import io.servicetalk.concurrent.internal.ConcurrentUtils;
 import io.servicetalk.transport.api.ConnectionContext;
 import io.servicetalk.transport.api.ExecutionContext;
@@ -171,11 +170,6 @@ final class NettyPipelinedConnection<Req, Resp> implements NettyConnectionContex
     @Override
     public ConnectionContext parent() {
         return connection.parent();
-    }
-
-    @Override
-    public Single<Throwable> transportError() {
-        return connection.transportError();
     }
 
     @Override

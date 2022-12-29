@@ -483,11 +483,6 @@ final class NettyHttpServer {
         }
 
         @Override
-        public Single<Throwable> transportError() {
-            return connection.transportError();
-        }
-
-        @Override
         public Completable onClosing() {
             return connection.onClosing();
         }
