@@ -17,11 +17,15 @@ package io.servicetalk.transport.netty.internal;
 
 import io.servicetalk.transport.api.ClientSslConfig;
 import io.servicetalk.transport.api.ServerSslConfig;
+import io.servicetalk.transport.api.SslCertificateCompressionAlgorithm;
 import io.servicetalk.transport.api.SslConfig;
 
 import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.OpenSslCertificateCompressionConfig;
+import io.netty.handler.ssl.OpenSslContextOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
 
 import java.io.InputStream;
 import java.util.List;
@@ -72,11 +76,16 @@ public final class SslContextFactory {
             }
         }
         List<String> alpnProtocols = config.alpnProtocols();
-        builder.sslProvider(toNettySslProvider(config.provider(), alpnProtocols != null && !alpnProtocols.isEmpty()));
+        SslProvider nettySslProvider =
+                toNettySslProvider(config.provider(), alpnProtocols != null && !alpnProtocols.isEmpty());
+        builder.sslProvider(nettySslProvider);
 
         builder.protocols(config.sslProtocols());
         builder.ciphers(config.ciphers());
         builder.applicationProtocolConfig(nettyApplicationProtocol(alpnProtocols));
+
+        configureCertificateCompression(config, builder, nettySslProvider);
+
         try {
             return builder.build();
         } catch (SSLException e) {
@@ -132,7 +141,12 @@ public final class SslContextFactory {
         builder.protocols(config.sslProtocols());
         builder.ciphers(config.ciphers());
 
-        builder.sslProvider(toNettySslProvider(config.provider(), alpnProtocols != null && !alpnProtocols.isEmpty()));
+        io.netty.handler.ssl.SslProvider nettySslProvider =
+                toNettySslProvider(config.provider(), alpnProtocols != null && !alpnProtocols.isEmpty());
+        builder.sslProvider(nettySslProvider);
+
+        configureCertificateCompression(config, builder, nettySslProvider);
+
         try {
             return builder.build();
         } catch (SSLException e) {
@@ -151,6 +165,25 @@ public final class SslContextFactory {
                 closeAndRethrowUnchecked(trustManagerStream);
             }
         }
+    }
+
+    private static void configureCertificateCompression(SslConfig config, SslContextBuilder builder,
+                                                        @Nullable io.netty.handler.ssl.SslProvider nettySslProvider) {
+        // TODO: more reliable way - maybe OpenSsl.available() ?
+        final List<SslCertificateCompressionAlgorithm> algorithms = config.certificateCompressionAlgorithms();
+        if (algorithms == null || algorithms.isEmpty() || nettySslProvider != SslProvider.OPENSSL) {
+            return;
+        }
+
+        final OpenSslCertificateCompressionConfig.Builder configBuilder =
+                OpenSslCertificateCompressionConfig.newBuilder();
+        for (SslCertificateCompressionAlgorithm algorithm : algorithms) {
+            configBuilder.addAlgorithm(
+                    SslCertificateCompressionAlgorithmFactory.create(algorithm),
+                    OpenSslCertificateCompressionConfig.AlgorithmMode.Both
+            );
+        }
+        builder.option(OpenSslContextOption.CERTIFICATE_COMPRESSION_ALGORITHMS, configBuilder.build());
     }
 
     @Nullable

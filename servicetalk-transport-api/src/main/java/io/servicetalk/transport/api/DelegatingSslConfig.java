@@ -101,6 +101,12 @@ public abstract class DelegatingSslConfig<T extends SslConfig> implements SslCon
         return delegate.ciphers();
     }
 
+    @Nullable
+    @Override
+    public List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms() {
+        return delegate.certificateCompressionAlgorithms();
+    }
+
     @Override
     public long sessionCacheSize() {
         return delegate.sessionCacheSize();

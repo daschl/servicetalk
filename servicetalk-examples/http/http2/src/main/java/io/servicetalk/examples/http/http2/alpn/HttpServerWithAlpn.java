@@ -18,6 +18,7 @@ package io.servicetalk.examples.http.http2.alpn;
 import io.servicetalk.http.netty.HttpServers;
 import io.servicetalk.test.resources.DefaultTestCerts;
 import io.servicetalk.transport.api.ServerSslConfigBuilder;
+import io.servicetalk.transport.api.SslCertificateCompressionAlgorithm;
 
 import static io.servicetalk.http.api.HttpSerializers.textSerializerUtf8;
 import static io.servicetalk.http.netty.HttpProtocolConfigs.h1Default;
@@ -36,6 +37,7 @@ public final class HttpServerWithAlpn {
                 // Note: DefaultTestCerts contains self-signed certificates that may be used only for local testing.
                 // or demonstration purposes. Never use those for real use-cases.
                 .sslConfig(new ServerSslConfigBuilder(DefaultTestCerts::loadServerPem, DefaultTestCerts::loadServerKey)
+                        .certificateCompressionAlgorithms(SslCertificateCompressionAlgorithm.BROTLI)
                         .build())
                 // Note: this example demonstrates only blocking-aggregated programming paradigm, for asynchronous and
                 // streaming API see helloworld examples.

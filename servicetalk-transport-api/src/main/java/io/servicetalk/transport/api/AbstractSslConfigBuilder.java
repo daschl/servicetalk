@@ -50,6 +50,8 @@ abstract class AbstractSslConfigBuilder<T extends AbstractSslConfigBuilder<T>> {
     private List<String> alpnProtocols;
     @Nullable
     private List<String> ciphers;
+    @Nullable
+    private List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms;
     private long sessionCacheSize;
     private long sessionTimeout;
     @Nullable
@@ -201,6 +203,21 @@ abstract class AbstractSslConfigBuilder<T extends AbstractSslConfigBuilder<T>> {
     @Nullable
     final List<String> sslProtocols() {
         return sslProtocols;
+    }
+
+    public final T certificateCompressionAlgorithms(
+            final List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms) {
+        this.certificateCompressionAlgorithms = certificateCompressionAlgorithms;
+        return thisT();
+    }
+
+    public final T certificateCompressionAlgorithms(final SslCertificateCompressionAlgorithm... algorithms) {
+        return certificateCompressionAlgorithms(asList(algorithms));
+    }
+
+    @Nullable
+    final List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms() {
+        return certificateCompressionAlgorithms;
     }
 
     /**

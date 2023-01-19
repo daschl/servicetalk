@@ -20,6 +20,7 @@ import io.servicetalk.http.api.HttpResponse;
 import io.servicetalk.http.netty.HttpClients;
 import io.servicetalk.test.resources.DefaultTestCerts;
 import io.servicetalk.transport.api.ClientSslConfigBuilder;
+import io.servicetalk.transport.api.SslCertificateCompressionAlgorithm;
 
 import static io.servicetalk.http.api.HttpSerializers.textSerializerUtf8;
 import static io.servicetalk.http.netty.HttpProtocolConfigs.h1Default;
@@ -39,7 +40,8 @@ public final class HttpClientWithAlpn {
                 .protocols(h2Default(), h1Default()) // Configure support for HTTP/2 and HTTP/1.1 protocols
                 // Note: DefaultTestCerts contains self-signed certificates that may be used only for local testing.
                 // or demonstration purposes. Never use those for real use-cases.
-                .sslConfig(new ClientSslConfigBuilder(DefaultTestCerts::loadServerCAPem).build())
+                .sslConfig(new ClientSslConfigBuilder(DefaultTestCerts::loadServerCAPem)
+                        .certificateCompressionAlgorithms(SslCertificateCompressionAlgorithm.BROTLI).build())
                 .buildBlocking()) {
             HttpResponse response = client.request(client.get("/"));
             System.out.println(response.toString((name, value) -> value));

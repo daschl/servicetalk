@@ -18,6 +18,12 @@ apply plugin: "io.servicetalk.servicetalk-gradle-plugin-internal-library"
 
 ext.isNettySnapshot = "$nettyVersion".endsWithAny("SNAPSHOT", "+")
 
+import org.gradle.nativeplatform.platform.internal.Architectures
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
+
+def brotliVersion = "1.9.0"
+def operatingSystem = DefaultNativePlatform.getCurrentOperatingSystem()
+
 dependencies {
   api platform(project(":servicetalk-dependencies"))
   testImplementation enforcedPlatform("org.junit:junit-bom:$junit5Version")
@@ -53,6 +59,23 @@ dependencies {
   runtimeOnly( group:"io.netty", name:"netty-tcnative-boringssl-static", classifier:"osx-x86_64")
   runtimeOnly( group:"io.netty", name:"netty-tcnative-boringssl-static", classifier:"osx-aarch_64")
   implementation "org.slf4j:slf4j-api"
+
+  // TODO: fixme
+  implementation "com.aayushatharva.brotli4j:brotli4j:$brotliVersion"
+  runtimeOnly("""com.aayushatharva.brotli4j:native-${
+    if (operatingSystem.isWindows()) "windows-x86_64"
+    else if (operatingSystem.isMacOsX())
+      if (DefaultNativePlatform.getCurrentArchitecture().isArm()) "osx-aarch64"
+      else "osx-x86_64"
+    else if (operatingSystem.isLinux())
+      if (Architectures.ARM_V7.isAlias(DefaultNativePlatform.getCurrentArchitecture().getName())) "linux-armv7"
+      else if (Architectures.AARCH64.isAlias(DefaultNativePlatform.getCurrentArchitecture().getName())) "linux-aarch64"
+      else if (Architectures.X86_64.isAlias(DefaultNativePlatform.getCurrentArchitecture().getName())) "linux-x86_64"
+      else
+        throw new IllegalStateException("Unsupported architecture: ${DefaultNativePlatform.getCurrentArchitecture().getName()}");
+    else
+      throw new IllegalStateException("Unsupported operating system: $operatingSystem");
+  }:$brotliVersion""")
 
   testImplementation testFixtures(project(":servicetalk-concurrent-api"))
   testImplementation testFixtures(project(":servicetalk-concurrent-internal"))

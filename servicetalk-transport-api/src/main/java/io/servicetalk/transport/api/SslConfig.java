@@ -136,4 +136,9 @@ public interface SslConfig {
      */
     @Nullable
     SslProvider provider();
+
+    @Nullable
+    default List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms() {
+        return null;
+    }
 }

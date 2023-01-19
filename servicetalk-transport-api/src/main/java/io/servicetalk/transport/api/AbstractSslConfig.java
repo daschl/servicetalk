@@ -45,6 +45,8 @@ abstract class AbstractSslConfig implements SslConfig {
     private final long sessionTimeout;
     @Nullable
     private final SslProvider provider;
+    @Nullable
+    private final List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms;
 
     AbstractSslConfig(@Nullable final TrustManagerFactory trustManagerFactory,
                       @Nullable final Supplier<InputStream> trustCertChainSupplier,
@@ -54,7 +56,8 @@ abstract class AbstractSslConfig implements SslConfig {
                       @Nullable final String keyPassword, @Nullable final List<String> sslProtocols,
                       @Nullable final List<String> alpnProtocols,
                       @Nullable final List<String> ciphers, final long sessionCacheSize,
-                      final long sessionTimeout, @Nullable final SslProvider provider) {
+                      final long sessionTimeout, @Nullable final SslProvider provider,
+                      @Nullable final List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms) {
         this.trustManagerFactory = trustManagerFactory;
         this.trustCertChainSupplier = trustCertChainSupplier;
         this.keyManagerFactory = keyManagerFactory;
@@ -67,6 +70,7 @@ abstract class AbstractSslConfig implements SslConfig {
         this.sessionCacheSize = sessionCacheSize;
         this.sessionTimeout = sessionTimeout;
         this.provider = provider;
+        this.certificateCompressionAlgorithms = certificateCompressionAlgorithms;
     }
 
     @Nullable
@@ -121,6 +125,12 @@ abstract class AbstractSslConfig implements SslConfig {
     @Override
     public final List<String> ciphers() {
         return ciphers;
+    }
+
+    @Nullable
+    @Override
+    public List<SslCertificateCompressionAlgorithm> certificateCompressionAlgorithms() {
+        return certificateCompressionAlgorithms;
     }
 
     @Override
