@@ -2063,6 +2063,16 @@ public interface Buffer {
      */
     String toString(int index, int length, Charset charset);
 
+    default String hexDump(boolean pretty) {
+        return hexDump(0, readableBytes(), pretty);
+    }
+
+    default String hexDump(int index, int length, boolean pretty) {
+        return pretty ?
+                HexUtil.prettyHexDump(this, index, length) :
+                HexUtil.simpleHexDump(this, index, length);
+    }
+
     /**
      * Return an {@link OutputStream} that wraps the given {@link Buffer}. The writerIndex will be increased when
      * writing to the buffer.
