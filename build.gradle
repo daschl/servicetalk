@@ -119,20 +119,8 @@ subprojects {
     lockMode = LockMode.STRICT
   }
 
-  configurations {
-    annotationProcessor {
-      resolutionStrategy.activateDependencyLocking()
-    }
-    compileClasspath {
-      resolutionStrategy.activateDependencyLocking()
-    }
-    runtimeClasspath {
-      resolutionStrategy.activateDependencyLocking()
-    }
-    jmhCompileClasspath {
-      resolutionStrategy.activateDependencyLocking()
-    }
-    jmhRuntimeClasspath {
+  configurations.configureEach {
+    if (it.canBeResolved) {
       resolutionStrategy.activateDependencyLocking()
     }
   }

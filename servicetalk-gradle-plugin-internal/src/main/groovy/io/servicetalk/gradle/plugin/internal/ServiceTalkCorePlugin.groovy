@@ -94,7 +94,7 @@ class ServiceTalkCorePlugin implements Plugin<Project> {
         }
       }
 
-      tasks.withType(Checkstyle).all {
+      tasks.withType(Checkstyle).configureEach {
         group = "verification"
         it.dependsOn checkstyleResources
       }
