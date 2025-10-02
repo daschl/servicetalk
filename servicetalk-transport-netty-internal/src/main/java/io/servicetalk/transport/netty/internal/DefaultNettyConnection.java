@@ -933,12 +933,12 @@ public final class DefaultNettyConnection<Read, Write> extends NettyChannelListe
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
             @SuppressWarnings("unchecked")
             final Read t = (Read) msg;
-            connection.nettyChannelPublisher.channelRead(t);
+            connection.nettyChannelPublisher.channelOnRead(t);
         }
 
         @Override
         public void channelReadComplete(ChannelHandlerContext ctx) {
-            connection.nettyChannelPublisher.onReadComplete();
+            connection.nettyChannelPublisher.channelOnReadComplete();
         }
 
         @Override

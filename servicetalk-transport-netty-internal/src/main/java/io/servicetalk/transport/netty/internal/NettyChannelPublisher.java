@@ -20,7 +20,6 @@ import io.servicetalk.concurrent.internal.DuplicateSubscribeException;
 import io.servicetalk.concurrent.internal.TerminalNotification;
 
 import io.netty.channel.Channel;
-import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCounted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +41,6 @@ import static io.servicetalk.transport.netty.internal.ChannelCloseUtils.close;
 
 final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
     private static final Logger LOGGER = LoggerFactory.getLogger(NettyChannelPublisher.class);
-    // All state is only touched from eventloop.
     private long requestCount;
     private boolean requested;
     @Nullable
@@ -58,25 +56,18 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
 
     private final Channel channel;
     private final CloseHandler closeHandler;
-    private final EventLoop eventLoop;
 
-    NettyChannelPublisher(Channel channel, CloseHandler closeHandler) {
-        this.eventLoop = channel.eventLoop();
+    NettyChannelPublisher(final Channel channel, final CloseHandler closeHandler) {
         this.channel = channel;
         this.closeHandler = closeHandler;
     }
 
     @Override
-    protected void handleSubscribe(Subscriber<? super T> nextSubscriber) {
-        if (eventLoop.inEventLoop()) {
-            subscribe0(nextSubscriber);
-        } else {
-            eventLoop.execute(() -> subscribe0(nextSubscriber));
-        }
+    protected synchronized void handleSubscribe(final Subscriber<? super T> nextSubscriber) {
+        subscribe0(nextSubscriber);
     }
 
-    void channelRead(T data) {
-        assertInEventloop();
+    synchronized void channelOnRead(final T data) {
         if (data instanceof ReferenceCounted) {
             channelReadReferenceCounted((ReferenceCounted) data);
             return;
@@ -98,8 +89,7 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
     /**
      * Signifies all data has been read and {@link Subscriber#onComplete()} should be emitted.
      */
-    void channelOnComplete() {
-        assertInEventloop();
+    synchronized void channelOnComplete() {
         if (fatalError != null) {
             return;
         }
@@ -114,8 +104,7 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    void channelOnError(Throwable throwable) {
-        assertInEventloop();
+    synchronized void channelOnError(final Throwable throwable) {
         if (fatalError == null) {
             // The Throwable is propagated as-is downstream but subsequent subscribers should see a
             // ClosedChannelException (with original Throwable as the cause for context).
@@ -126,44 +115,15 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private void channelOnError0(Throwable throwable) {
-        assignConnectionError(channel, throwable);
-        if (subscription == null) {
-            closeChannelInbound();
-            if (hasQueuedSignals()) {
-                addPending(error(throwable));
-            }
-        } else if (hasQueuedSignals()) {
-            addPending(error(throwable));
-            processPending(subscription);
-        } else {
-            emitError(subscription, throwable);
-        }
-    }
-
-    private void channelReadReferenceCounted(ReferenceCounted data) {
-        try {
-            data.release();
-        } finally {
-            // We do not expect ref-counted objects here as ST does not support them and do not take care to clean them
-            // in error conditions. Hence we fail-fast when we see such objects.
-            emitCatchError(subscription,
-                    new IllegalArgumentException("Reference counted leaked netty's pipeline. Object: " +
-                            data.getClass().getSimpleName()), true);
-        }
-    }
-
-    void onReadComplete() {
-        assertInEventloop();
+    synchronized void channelOnReadComplete() {
         requested = false;
         if (requestCount > 0) {
             requestChannel();
         }
     }
 
-    // All private methods MUST be invoked from the eventloop.
-
-    private void requestN(long n, SubscriptionImpl forSubscription) {
+    // no synchronize needed (done in SubscriptionImpl)
+    private void requestN(final long n, final SubscriptionImpl forSubscription) {
         if (forSubscription != subscription) {
             // Subscription shares common state hence a requestN after termination/cancellation must be ignored
             return;
@@ -184,8 +144,52 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
+    // no synchronize needed (done in SubscriptionImpl)
+    private void cancel0(final SubscriptionImpl forSubscription) {
+        if (forSubscription != subscription) {
+            // Subscription shares common state hence a requestN after termination/cancellation must be ignored
+            return;
+        }
+        LOGGER.debug("{} Cancelling subscription", channel);
+        resetSubscription();
+
+        // If a cancel occurs with a valid subscription we need to clear any pending data and set a fatalError so that
+        // any future Subscribers don't get partial data delivered from the queue.
+        // We don't need to terminate the subscriber because cancellation is originated by the subscriber, pass null.
+        emitCatchError(null, StacklessClosedChannelException.newInstance(NettyChannelPublisher.class, "cancel"), true);
+    }
+
+    // no synchronize needed (transitively called from synchronized method)
+    private void channelOnError0(final Throwable throwable) {
+        assignConnectionError(channel, throwable);
+        if (subscription == null) {
+            closeChannelInbound();
+            if (hasQueuedSignals()) {
+                addPending(error(throwable));
+            }
+        } else if (hasQueuedSignals()) {
+            addPending(error(throwable));
+            processPending(subscription);
+        } else {
+            emitError(subscription, throwable);
+        }
+    }
+
+    // no synchronize needed (transitively called from synchronized method)
+    private void channelReadReferenceCounted(final ReferenceCounted data) {
+        try {
+            data.release();
+        } finally {
+            // We do not expect ref-counted objects here as ST does not support them and do not take care to clean them
+            // in error conditions. Hence we fail-fast when we see such objects.
+            emitCatchError(subscription,
+                    new IllegalArgumentException("Reference counted leaked netty's pipeline. Object: " +
+                            data.getClass().getSimpleName()), true);
+        }
+    }
+
+    // no synchronize needed (transitively called from synchronized method)
     private boolean processPending(SubscriptionImpl target) {
-        // Should always be called from EventLoop. (assert done before calling)
         if (pending == null) {
             return false;
         }
@@ -221,6 +225,7 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     private void tryPreemptiveChannelCloseInbound() {
         assert pending != null;
         final Object top = pending.peek();
@@ -234,7 +239,8 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private boolean emit(SubscriptionImpl target, Object next) {
+    // no synchronize needed (transitively called from synchronized method)
+    private boolean emit(final SubscriptionImpl target, final Object next) {
         assert requestCount > 0;
         --requestCount;
         try {
@@ -248,9 +254,10 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         return false;
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     @SuppressWarnings("StatementWithEmptyBody")
-    private void emitCatchError(@Nullable SubscriptionImpl target, Throwable cause,
-                                boolean drainPendingToNextTerminal) {
+    private void emitCatchError(final @Nullable SubscriptionImpl target, final Throwable cause,
+                                final boolean drainPendingToNextTerminal) {
         // If we have items queued, we avoid delivering partial content to the next subscriber by draining until we see
         // a Terminal signal. We also don't enqueue future signals after we see a fatal error.
         if (pending != null && drainPendingToNextTerminal) {
@@ -275,7 +282,8 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private boolean emit(SubscriptionImpl target, TerminalNotification terminal) {
+    // no synchronize needed (transitively called from synchronized method)
+    private boolean emit(final SubscriptionImpl target, final TerminalNotification terminal) {
         final Throwable cause = terminal.cause();
         if (cause == null) {
             emitComplete(target);
@@ -285,7 +293,8 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         return true;
     }
 
-    private void emitComplete(SubscriptionImpl target) {
+    // no synchronize needed (transitively called from synchronized method)
+    private void emitComplete(final SubscriptionImpl target) {
         resetSubscription();
         try {
             target.associatedSub.onComplete();
@@ -296,7 +305,8 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private void emitError(SubscriptionImpl target, Throwable throwable) {
+    // no synchronize needed (transitively called from synchronized method)
+    private void emitError(final SubscriptionImpl target, final Throwable throwable) {
         resetSubscription();
         try {
             target.associatedSub.onError(throwable);
@@ -308,56 +318,50 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private void cancel0(SubscriptionImpl forSubscription) {
-        if (forSubscription != subscription) {
-            // Subscription shares common state hence a requestN after termination/cancellation must be ignored
-            return;
-        }
-        LOGGER.debug("{} Cancelling subscription", channel);
-        resetSubscription();
-
-        // If a cancel occurs with a valid subscription we need to clear any pending data and set a fatalError so that
-        // any future Subscribers don't get partial data delivered from the queue.
-        // We don't need to terminate the subscriber because cancellation is originated by the subscriber, pass null.
-        emitCatchError(null, StacklessClosedChannelException.newInstance(NettyChannelPublisher.class, "cancel"), true);
-    }
-
+    // no synchronize needed (transitively called from synchronized method)
     // For cases when an error occurred in netty pipeline
     private void closeChannelInbound() {
         closeHandler.closeChannelInbound(channel);
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     // For cases with an error occurred in subscriber or a result of cancellation
     private void closeChannelOutbound() {
         closeHandler.closeChannelOutbound(channel);
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     private void resetSubscription() {
         subscription = null;
         requestCount = 0;
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     private void requestChannel() {
         requested = true;
         channel.read();
     }
 
-    private void addPending(Object p) {
+    // no synchronize needed (transitively called from synchronized method)
+    private void addPending(final Object p) {
         if (pending == null) {
             pending = new ArrayDeque<>(4);  // queue should be able to fit: headers + payloadBody + trailers
         }
         pending.add(p);
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     private boolean shouldBuffer() {
         return hasQueuedSignals() || requestCount == 0;
     }
 
+    // no synchronize needed (transitively called from synchronized method)
     private boolean hasQueuedSignals() {
         return pending != null && !pending.isEmpty();
     }
 
-    private void subscribe0(Subscriber<? super T> subscriber) {
+    // no synchronize needed (transitively called from synchronized method)
+    private void subscribe0(final Subscriber<? super T> subscriber) {
         SubscriptionImpl subscription = this.subscription;
         if (subscription != null) {
             deliverErrorFromSource(subscriber,
@@ -386,10 +390,6 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
         }
     }
 
-    private void assertInEventloop() {
-        assert eventLoop.inEventLoop() : "Must be called from the associated eventloop.";
-    }
-
     private final class SubscriptionImpl implements Subscription {
 
         final Subscriber<? super T> associatedSub;
@@ -400,19 +400,15 @@ final class NettyChannelPublisher<T> extends SubscribablePublisher<T> {
 
         @Override
         public void request(long n) {
-            if (eventLoop.inEventLoop()) {
+            synchronized (NettyChannelPublisher.this) {
                 NettyChannelPublisher.this.requestN(n, this);
-            } else {
-                eventLoop.execute(() -> NettyChannelPublisher.this.requestN(n, this));
             }
         }
 
         @Override
         public void cancel() {
-            if (eventLoop.inEventLoop()) {
+            synchronized (NettyChannelPublisher.this) {
                 NettyChannelPublisher.this.cancel0(this);
-            } else {
-                eventLoop.execute(() -> NettyChannelPublisher.this.cancel0(this));
             }
         }
     }

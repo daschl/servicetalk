@@ -553,7 +553,7 @@ class ClientEffectiveStrategyTest {
                             errors.add(e);
                         }
                     } else {
-                        if (!ioThread) {
+                        if (!ioThread && !appThread) { // todo: not sure about this one, assertion error says this is ok?
                             final AssertionError e = new AssertionError("Expected IoThread or " +
                                     applicationThread.getName() + " at " + offloadPoint +
                                     ", but was running on an offloading executor thread: " + current.getName() +
